@@ -4,13 +4,13 @@
 
 ## Features
 
-- 📊 Fetch historical stock prices from Yahoo Finance
-- 💾 Store data locally in SQLite database
-- 📈 Performance rankings and momentum analysis
-- 💰 Calculate dividend yields
-- 🔄 Track stock splits
-- 🎨 Beautiful terminal UI with themed tables (powered by [rich](https://github.com/Textualize/rich))
-- 📁 Project-based config (like git) - track multiple portfolios
+- Fetch historical stock prices from Yahoo Finance
+- Store data locally in SQLite database
+- Performance rankings and momentum analysis
+- Calculate dividend yields
+- Track stock splits
+- Beautiful terminal UI with themed tables (powered by [rich](https://github.com/Textualize/rich))
+- Project-based config (like git) - track multiple portfolios
 
 ## Installation
 
