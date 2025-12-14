@@ -10,11 +10,11 @@ import tomllib
 import sqlite3
 from dateutil.relativedelta import relativedelta
 from rich.console import Console
-from rich.table import Table
 
 from . import __version__
 from .config import get_paths, init_config, CONFIG_FILENAME
 from .db import StockDatabase
+from . import themes
 
 console = Console(stderr=True)
 
@@ -29,7 +29,7 @@ def check_date(s: str) -> datetime.date:
 
 
 def display_performance(df, title: str, count: int | None = None):
-    """Display performance ranking with rich table"""
+    """Display performance ranking with themed table"""
     if df.empty:
         console.print(f"[yellow]No data available for {title}[/yellow]")
         return
@@ -38,13 +38,8 @@ def display_performance(df, title: str, count: int | None = None):
     if count:
         df = df.head(count)
 
-    table = Table(title=title, show_header=True, header_style="bold cyan")
-    table.add_column("Ticker", style="bold", width=8)
-    table.add_column("Start", justify="right", width=12)
-    table.add_column("End", justify="right", width=12)
-    table.add_column("Change", justify="right", width=10)
-    table.add_column("Change %", justify="right", width=10)
-
+    # Prepare data for themed table
+    table_data = []
     for _, row in df.iterrows():
         # Color code based on performance
         change_pct = row['ChangePercent']
@@ -61,14 +56,16 @@ def display_performance(df, title: str, count: int | None = None):
             change_str = f"{row['Change']:.2f}"
             pct_str = f"{change_pct:.2f}%"
 
-        table.add_row(
+        table_data.append([
             row['Ticker'].upper(),
             row['StartDate'],
             row['EndDate'],
             f"[{change_style}]{change_str}[/{change_style}]",
             f"[{change_style}]{pct_str}[/{change_style}]"
-        )
+        ])
 
+    headers = ["Ticker", "Start", "End", "Change", "Change %"]
+    table = themes.themed_table(title, table_data, headers)
     console.print(table)
 
 
