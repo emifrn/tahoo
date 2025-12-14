@@ -96,8 +96,22 @@ def get_paths(config_dir: Optional[Path] = None) -> Tuple[dict, Path, Path]:
         )
 
     settings = load_config(config_dir)
-    database = config_dir / DATABASE_FILENAME
-    updates = config_dir / UPDATES_FILENAME
+
+    # Get database path (from config or fallback to same directory)
+    if 'paths' in settings and 'database' in settings['paths']:
+        database = Path(settings['paths']['database'])
+        if not database.is_absolute():
+            database = config_dir / database
+    else:
+        database = config_dir / DATABASE_FILENAME
+
+    # Get updates path (from config or fallback to same directory)
+    if 'paths' in settings and 'updates' in settings['paths']:
+        updates = Path(settings['paths']['updates'])
+        if not updates.is_absolute():
+            updates = config_dir / updates
+    else:
+        updates = config_dir / UPDATES_FILENAME
 
     return settings, database, updates
 
@@ -113,6 +127,13 @@ tickers = []
 repair = true
 # Auto-adjust prices for splits/dividends
 auto_adjust = false
+
+# [paths]
+# Optional: Specify custom paths for database and updates file
+# If not specified, defaults to ty.db and ty.updates.csv in same directory as ty.toml
+# Paths can be absolute or relative (relative to ty.toml location)
+# database = "ty.db"
+# updates = "ty.updates.csv"
 """
 
 

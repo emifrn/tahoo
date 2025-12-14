@@ -17,7 +17,7 @@
 ### From source
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tahoo.git
+git clone https://github.com/emifrn/tahoo.git
 cd tahoo
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -51,6 +51,11 @@ tickers = ["AAPL", "MSFT", "GOOGL", "NVDA"]
 [history]
 repair = true
 auto_adjust = false
+
+# Optional: Specify custom paths for database and updates file
+# [paths]
+# database = "ty.db"              # Can be absolute or relative to ty.toml
+# updates = "ty.updates.csv"
 ```
 
 ### 3. Fetch data
@@ -218,7 +223,7 @@ ty yield --csv > yields.csv
 
 ## Theming
 
-Tahoo uses the same theme system as [edgar-pipes](https://github.com/YOUR_USERNAME/edgar-pipes) for consistent visual output.
+Tahoo uses the same theme system as [edgar-pipes](https://github.com/emifrn/edgar-pipes) for consistent visual output.
 
 **Default theme:** `nobox-minimal-dark` (clean, no borders, subtle zebra striping)
 
@@ -237,7 +242,7 @@ export NO_COLOR=1               # Disable colors
 ## How It Works
 
 1. **Config discovery**: Searches for `ty.toml` starting from current directory, walking up to filesystem root
-2. **Data storage**: Stores historical prices in `ty.db` (SQLite) alongside `ty.toml`
+2. **Data storage**: Stores historical prices in `ty.db` (SQLite) and manual corrections in `ty.updates.csv`. By default, both files are stored alongside `ty.toml`, but you can specify custom paths (absolute or relative) in the `[paths]` section of `ty.toml`
 3. **Incremental updates**: Only fetches new data since last refresh (skips weekends automatically)
 4. **Manual corrections**: Applies fixes from `ty.updates.csv` to handle bad Yahoo data
 5. **Performance analysis**: Compares first and last prices over period to calculate momentum

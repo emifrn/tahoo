@@ -45,9 +45,9 @@ dev = [
 ty = "tahoo.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/tahoo"
-Repository = "https://github.com/YOUR_USERNAME/tahoo"
-Issues = "https://github.com/YOUR_USERNAME/tahoo/issues"
+Homepage = "https://github.com/emifrn/tahoo"
+Repository = "https://github.com/emifrn/tahoo"
+Issues = "https://github.com/emifrn/tahoo/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
