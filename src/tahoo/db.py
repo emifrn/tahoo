@@ -353,3 +353,81 @@ class StockDatabase:
             resampled.append(resampled_group)
 
         return pd.concat(x for x in resampled if not x.empty)
+
+    def performance(
+        self,
+        tickers: list[str] | None,
+        begin: str | None,
+        end: str | None
+    ) -> pd.DataFrame:
+        """
+        Calculate performance (price change) for each ticker over a period.
+
+        Returns DataFrame with columns:
+        - Ticker: Stock symbol
+        - StartDate: First date in period
+        - StartPrice: Opening price
+        - EndDate: Last date in period
+        - EndPrice: Closing price
+        - Change: Absolute price change
+        - ChangePercent: Percentage change
+        """
+        selection = []
+
+        if ticker_list := self.tickers(tickers):
+            ticker_conditions = ' OR '.join(f'Ticker="{t}"' for t in ticker_list)
+            selection.append(f'({ticker_conditions})')
+
+        if begin is not None:
+            selection.append(f'Date >= date("{begin}")')
+        if end is not None:
+            selection.append(f'Date < date("{end}")')
+
+        where_clause = ' AND '.join(selection) if selection else '1=1'
+
+        # Get first and last price for each ticker in the period
+        query = f"""
+            WITH FirstPrices AS (
+                SELECT
+                    Ticker,
+                    MIN(Date) as StartDate,
+                    Close as StartPrice
+                FROM HistoryTable
+                WHERE {where_clause}
+                GROUP BY Ticker
+            ),
+            LastPrices AS (
+                SELECT
+                    Ticker,
+                    MAX(Date) as EndDate,
+                    Close as EndPrice
+                FROM HistoryTable
+                WHERE {where_clause}
+                GROUP BY Ticker
+            )
+            SELECT
+                f.Ticker,
+                f.StartDate,
+                f.StartPrice,
+                l.EndDate,
+                l.EndPrice
+            FROM FirstPrices f
+            JOIN LastPrices l ON f.Ticker = l.Ticker
+            WHERE f.StartDate < l.EndDate
+        """
+
+        df = pd.read_sql_query(query, self._conn)
+
+        if df.empty:
+            return df
+
+        # Calculate changes
+        df['Change'] = df['EndPrice'] - df['StartPrice']
+        df['ChangePercent'] = (df['Change'] / df['StartPrice'] * 100).round(2)
+
+        # Round prices
+        df['StartPrice'] = df['StartPrice'].round(2)
+        df['EndPrice'] = df['EndPrice'].round(2)
+        df['Change'] = df['Change'].round(2)
+
+        return df
