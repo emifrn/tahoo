@@ -86,8 +86,6 @@ class MinimalDarkTheme(BaseTheme):
         return ["", "dim"]
 
     def get_column_style(self, column_name: str) -> str:
-        if column_name.lower() in ['ticker', 'symbol']:
-            return 'bold bright_white'
         return ''
 
 
@@ -112,9 +110,7 @@ class FinancialDarkTheme(BaseTheme):
 
     def get_column_style(self, column_name: str) -> str:
         name_lower = column_name.lower()
-        if name_lower in ['ticker', 'symbol']:
-            return 'bold bright_blue'
-        elif 'date' in name_lower:
+        if 'date' in name_lower:
             return 'bright_green'
         elif 'change' in name_lower and '%' in column_name:
             return 'yellow'
@@ -164,7 +160,7 @@ def get_default_theme() -> str:
 
 def themed_table(
     title: str,
-    data: list[dict],
+    data: list[list[str]],
     headers: list[str],
     theme_name: str | None = None
 ) -> Table:
@@ -197,7 +193,8 @@ def themed_table(
     # Add columns with appropriate styling
     for header in headers:
         column_style = theme.get_column_style(header)
-        justify = "right" if header != "Ticker" else "left"
+        # Left-justify text columns, right-justify numbers
+        justify = "left" if header in ["Ticker", "Date"] else "right"
         table.add_column(header, style=column_style, justify=justify)
 
     # Add rows

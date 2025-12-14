@@ -28,6 +28,33 @@ def check_date(s: str) -> datetime.date:
         raise argparse.ArgumentTypeError(msg)
 
 
+def display_dataframe(df, title: str | None = None):
+    """Display pandas DataFrame with themed table"""
+    if df.empty:
+        console.print("[yellow]No data available[/yellow]")
+        return
+
+    # Prepare data for themed table
+    table_data = []
+    headers = [str(col) for col in df.columns]
+
+    for _, row in df.iterrows():
+        row_data = []
+        for col in df.columns:
+            value = row[col]
+            # Format different types
+            if isinstance(value, float):
+                row_data.append(f"{value:.2f}")
+            elif hasattr(value, 'strftime'):  # datetime object
+                row_data.append(value.strftime('%Y-%m-%d'))
+            else:
+                row_data.append(str(value))
+        table_data.append(row_data)
+
+    table = themes.themed_table(title or "", table_data, headers)
+    console.print(table)
+
+
 def display_performance(df, title: str, count: int | None = None):
     """Display performance ranking with themed table"""
     if df.empty:
@@ -132,7 +159,9 @@ def cmd_show(args: argparse.Namespace) -> int:
             if args.csv:
                 print(df.to_csv())
             else:
-                print(df.to_string())
+                # Reset index to show Date as a column
+                df_display = df.reset_index()
+                display_dataframe(df_display)
         elif df is not None:
             console.print("[yellow]No data found matching criteria[/yellow]")
 
@@ -235,7 +264,8 @@ def cmd_yield(args: argparse.Namespace) -> int:
             if args.csv:
                 print(df.to_csv())
             else:
-                print(df.to_string())
+                df_display = df.reset_index()
+                display_dataframe(df_display, "Dividend Yields")
         elif df is not None:
             console.print("[yellow]No data found[/yellow]")
 
@@ -267,7 +297,7 @@ def cmd_splits(args: argparse.Namespace) -> int:
         df = db.splits(tickers)
 
         if not df.empty:
-            print(df.to_string())
+            display_dataframe(df, "Stock Splits")
         else:
             console.print("[yellow]No splits found[/yellow]")
 
