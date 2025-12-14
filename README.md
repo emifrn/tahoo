@@ -6,9 +6,10 @@
 
 - 📊 Fetch historical stock prices from Yahoo Finance
 - 💾 Store data locally in SQLite database
-- 📈 Calculate dividend yields
+- 📈 Performance rankings and momentum analysis
+- 💰 Calculate dividend yields
 - 🔄 Track stock splits
-- 🎨 Beautiful terminal UI with progress bars (powered by [rich](https://github.com/Textualize/rich))
+- 🎨 Beautiful terminal UI with themed tables (powered by [rich](https://github.com/Textualize/rich))
 - 📁 Project-based config (like git) - track multiple portfolios
 
 ## Installation
@@ -55,21 +56,95 @@ auto_adjust = false
 ### 3. Fetch data
 
 ```bash
-ty -r          # Refresh all default tickers
-ty -r TSLA AMD # Refresh specific tickers
+ty fetch              # Fetch all default tickers
+ty fetch AAPL MSFT   # Fetch specific tickers
 ```
 
-### 4. Query data
+### 4. Analyze your portfolio
 
 ```bash
-ty -s                    # Show all history for default tickers
-ty -s AAPL MSFT          # Show history for specific tickers
-ty -s AAPL -m            # Show last month
-ty -s AAPL -y            # Show last year
-ty -s -b 2024-01-01      # Show from specific date
-ty --yld                 # Show dividend yields
-ty -d                    # Show only dividend payments
-ty -x                    # Show only stock splits
+ty show AAPL -m            # Show AAPL last month
+ty show -y                 # Show all tickers last year
+ty rank --movers 10 -y     # Top/bottom 10 performers
+ty yield                   # Show dividend yields
+```
+
+## Commands
+
+### `ty init`
+Initialize `ty.toml` in current directory
+
+```bash
+ty init
+```
+
+### `ty fetch`
+Fetch/refresh stock data from Yahoo Finance
+
+```bash
+ty fetch              # All tickers from config
+ty fetch AAPL MSFT   # Specific tickers only
+```
+
+### `ty show`
+Show historical price data
+
+```bash
+ty show                      # All history
+ty show AAPL MSFT           # Specific tickers
+ty show AAPL -m             # Last month
+ty show -y                  # Last year
+ty show -b 2024-01-01       # From specific date
+ty show -d                  # Dividends only
+ty show -x                  # Splits only
+ty show --csv               # CSV output
+```
+
+**Options:**
+- `-m` - Last month
+- `-y` - Last year
+- `-b YYYY-MM-DD` - Begin date
+- `-e YYYY-MM-DD` - End date
+- `-d` - Dividends only
+- `-x` - Splits only
+- `--csv` - CSV format
+
+### `ty rank`
+Performance rankings and momentum analysis
+
+```bash
+ty rank                      # Top 10 performers (default: last month)
+ty rank --movers 10 -y      # Top & bottom 10 last year
+ty rank --top 5 -m          # Top 5 last month
+ty rank --bottom 10         # Bottom 10 performers
+ty rank AAPL MSFT --movers 3  # Compare specific tickers
+```
+
+**Options:**
+- `--top N` - Show top N performers
+- `--bottom N` - Show bottom N performers
+- `--movers N` - Show top N and bottom N
+- `-m` - Last month (default)
+- `-y` - Last year
+- `--day` - Last day
+- `-b YYYY-MM-DD` - Begin date
+- `-e YYYY-MM-DD` - End date
+
+### `ty yield`
+Dividend yield analysis
+
+```bash
+ty yield              # All tickers
+ty yield JNJ KO PG   # Specific tickers
+ty yield --csv       # CSV output
+```
+
+### `ty splits`
+Stock split history
+
+```bash
+ty splits            # All splits
+ty splits AAPL NVDA # Specific tickers
 ```
 
 ## Project-Based Workflow
@@ -99,55 +174,65 @@ Date,Ticker,Open,High,Low,Close,Volume,Dividends,Splits
 2024-11-08,PFE,27.11,27.15,26.71,26.72,55866600,0.42,0.0
 ```
 
-These corrections are applied automatically when refreshing data.
-
-## Command Reference
-
-### Global Options
-
-```
--r [TKR ...]       Refresh history from Yahoo Finance (all or specific tickers)
--s [TKR ...]       Select tickers (default: all from config)
--b YYYY-MM-DD      Begin date
--e YYYY-MM-DD      End date
--m                 Last month
--y                 Last year
--d                 Show only dividends
--x                 Show only splits
---yld              Calculate trailing dividend yield
---csv              Output in CSV format
---version          Show version
-```
-
-### Commands
-
-```
-ty init            Create ty.toml in current directory
-```
+These corrections are applied automatically when fetching data.
 
 ## Examples
 
+### Track tech stocks
+
 ```bash
-# Track tech stocks
 mkdir ~/stocks/tech
 cd ~/stocks/tech
 ty init
 # Edit ty.toml to add AAPL, MSFT, GOOGL, NVDA
-ty -r                           # Fetch all data
-ty -s -y                        # Show last year
-ty --yld                        # Show dividend yields
+ty fetch                    # Fetch all data
+ty show -y                  # Show last year
+ty rank --movers 5 -y      # See top/bottom performers
+```
 
-# Track dividend stocks in separate project
+### Track dividend stocks
+
+```bash
 mkdir ~/stocks/dividends
 cd ~/stocks/dividends
 ty init
 # Edit ty.toml to add KO, PEP, JNJ, PG
-ty -r
-ty --yld                        # Compare yields
-
-# Export data for analysis
-ty -s AAPL -y --csv > aapl.csv
+ty fetch
+ty yield                   # Compare yields
 ```
+
+### Find momentum
+
+```bash
+ty rank --movers 10 -m     # Monthly movers
+ty rank --top 20 -y        # Yearly winners
+ty rank AAPL MSFT GOOGL --movers 2  # Compare big tech
+```
+
+### Export data
+
+```bash
+ty show AAPL -y --csv > aapl.csv
+ty yield --csv > yields.csv
+```
+
+## Theming
+
+Tahoo uses the same theme system as [edgar-pipes](https://github.com/YOUR_USERNAME/edgar-pipes) for consistent visual output.
+
+**Default theme:** `nobox-minimal-dark` (clean, no borders, subtle zebra striping)
+
+**Customize:**
+```bash
+export TAHOO_THEME=financial    # More colorful
+export NO_COLOR=1               # Disable colors
+```
+
+**Available themes:**
+- `default` (nobox-minimal-dark)
+- `minimal`
+- `financial`
+- `nobox`
 
 ## How It Works
 
@@ -155,6 +240,7 @@ ty -s AAPL -y --csv > aapl.csv
 2. **Data storage**: Stores historical prices in `ty.db` (SQLite) alongside `ty.toml`
 3. **Incremental updates**: Only fetches new data since last refresh (skips weekends automatically)
 4. **Manual corrections**: Applies fixes from `ty.updates.csv` to handle bad Yahoo data
+5. **Performance analysis**: Compares first and last prices over period to calculate momentum
 
 ## License
 
