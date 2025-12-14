@@ -86,86 +86,54 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
 
 
-def cmd_history(args: argparse.Namespace) -> int:
-    """Main command for querying/refreshing stock history"""
+def cmd_fetch(args: argparse.Namespace) -> int:
+    """Fetch/refresh stock data from Yahoo Finance"""
     try:
         settings, database, updates = get_paths()
         db = StockDatabase(settings, database, updates)
+        db.refresh('history', args.tickers)
+        return 0
 
-        # Refresh data if requested
-        if args.r is not None:
-            db.refresh('history', args.r)
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        console.print(f"\nRun [bold]ty init[/bold] to create a {CONFIG_FILENAME} file")
+        return 1
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        return 1
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+        return 130
+
+
+def cmd_show(args: argparse.Namespace) -> int:
+    """Show historical price data"""
+    try:
+        settings, database, updates = get_paths()
+        db = StockDatabase(settings, database, updates)
 
         # Determine date range
         if args.m:
             begin = datetime.date.today() - relativedelta(months=1)
             end = None
-            period_desc = "Last Month"
         elif args.y:
             begin = datetime.date.today() - relativedelta(months=12)
             end = None
-            period_desc = "Last Year"
-        elif args.d_period:
-            begin = datetime.date.today() - relativedelta(days=1)
-            end = None
-            period_desc = "Last Day"
         else:
             begin = args.b
             end = args.e
-            if begin and end:
-                period_desc = f"{begin} to {end}"
-            elif begin:
-                period_desc = f"Since {begin}"
-            else:
-                period_desc = "All Time"
-
-        # Handle performance rankings
-        if args.top or args.bottom or args.movers:
-            df = db.performance(args.s, begin=begin, end=end)
-
-            if df.empty:
-                console.print("[yellow]No data available for performance analysis[/yellow]")
-                return 0
-
-            # Sort by performance
-            df_sorted = df.sort_values('ChangePercent', ascending=False)
-
-            if args.movers:
-                # Show both top and bottom
-                count = args.movers
-                display_performance(df_sorted, f"Top {count} Performers ({period_desc})", count)
-                print()  # Blank line between tables
-                display_performance(
-                    df_sorted.iloc[::-1],  # Reverse for bottom
-                    f"Bottom {count} Performers ({period_desc})",
-                    count
-                )
-            elif args.top:
-                display_performance(df_sorted, f"Top {args.top} Performers ({period_desc})", args.top)
-            elif args.bottom:
-                # Reverse sort for bottom performers
-                df_sorted = df_sorted.iloc[::-1]
-                display_performance(df_sorted, f"Bottom {args.bottom} Performers ({period_desc})", args.bottom)
 
         # Query data
-        elif args.yld:
-            df = db.div_yield(args.s)
-            if df is not None and not df.empty:
-                if args.csv:
-                    print(df.to_csv())
-                else:
-                    print(df.to_string())
-            elif df is not None:
-                console.print("[yellow]No data found matching criteria[/yellow]")
-        else:
-            df = db.history(args.s, begin=begin, end=end, dividends=args.d, splits=args.x)
-            if df is not None and not df.empty:
-                if args.csv:
-                    print(df.to_csv())
-                else:
-                    print(df.to_string())
-            elif df is not None:
-                console.print("[yellow]No data found matching criteria[/yellow]")
+        df = db.history(args.tickers, begin=begin, end=end, dividends=args.d, splits=args.x)
+
+        # Output results
+        if df is not None and not df.empty:
+            if args.csv:
+                print(df.to_csv())
+            else:
+                print(df.to_string())
+        elif df is not None:
+            console.print("[yellow]No data found matching criteria[/yellow]")
 
         return 0
 
@@ -173,28 +141,153 @@ def cmd_history(args: argparse.Namespace) -> int:
         console.print(f"[red]Error: {e}[/red]")
         console.print(f"\nRun [bold]ty init[/bold] to create a {CONFIG_FILENAME} file")
         return 1
-    except requests.exceptions.HTTPError as e:
-        console.print(f"[red]HTTPError: {e}[/red]")
-        return 1
-    except tomllib.TOMLDecodeError as e:
-        console.print(f"[red]TOMLDecodeError: {e}[/red]")
-        return 1
-    except sqlite3.OperationalError as e:
-        console.print(f"[red]sqlite3.OperationalError: {e}[/red]")
-        return 1
-    except ValueError as e:
-        console.print(f"[red]ValueError: {e}[/red]")
-        return 1
-    except KeyError as e:
-        console.print(f"[red]KeyError: {e}[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
         return 1
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user[/yellow]")
         return 130
 
 
+def cmd_rank(args: argparse.Namespace) -> int:
+    """Show performance rankings and momentum"""
+    try:
+        settings, database, updates = get_paths()
+        db = StockDatabase(settings, database, updates)
+
+        # Determine date range (priority: y > day > b/e > m (default))
+        if args.y:
+            begin = datetime.date.today() - relativedelta(months=12)
+            end = None
+            period_desc = "Last Year"
+        elif args.day:
+            begin = datetime.date.today() - relativedelta(days=1)
+            end = None
+            period_desc = "Last Day"
+        elif args.b or args.e:
+            begin = args.b
+            end = args.e
+            if begin and end:
+                period_desc = f"{begin} to {end}"
+            elif begin:
+                period_desc = f"Since {begin}"
+            else:
+                period_desc = f"Until {end}"
+        else:
+            # Default to last month
+            begin = datetime.date.today() - relativedelta(months=1)
+            end = None
+            period_desc = "Last Month"
+
+        # Get performance data
+        df = db.performance(args.tickers, begin=begin, end=end)
+
+        if df.empty:
+            console.print("[yellow]No data available for performance analysis[/yellow]")
+            return 0
+
+        # Sort by performance
+        df_sorted = df.sort_values('ChangePercent', ascending=False)
+
+        # Display based on options
+        if args.movers:
+            count = args.movers
+            display_performance(df_sorted, f"Top {count} Performers ({period_desc})", count)
+            print()
+            display_performance(
+                df_sorted.iloc[::-1],
+                f"Bottom {count} Performers ({period_desc})",
+                count
+            )
+        elif args.top:
+            display_performance(df_sorted, f"Top {args.top} Performers ({period_desc})", args.top)
+        elif args.bottom:
+            df_sorted = df_sorted.iloc[::-1]
+            display_performance(df_sorted, f"Bottom {args.bottom} Performers ({period_desc})", args.bottom)
+        else:
+            # Default: show top 10
+            display_performance(df_sorted, f"Top 10 Performers ({period_desc})", 10)
+
+        return 0
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        console.print(f"\nRun [bold]ty init[/bold] to create a {CONFIG_FILENAME} file")
+        return 1
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        return 1
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+        return 130
+
+
+def cmd_yield(args: argparse.Namespace) -> int:
+    """Show dividend yield analysis"""
+    try:
+        settings, database, updates = get_paths()
+        db = StockDatabase(settings, database, updates)
+
+        df = db.div_yield(args.tickers)
+
+        if df is not None and not df.empty:
+            if args.csv:
+                print(df.to_csv())
+            else:
+                print(df.to_string())
+        elif df is not None:
+            console.print("[yellow]No data found[/yellow]")
+
+        return 0
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        console.print(f"\nRun [bold]ty init[/bold] to create a {CONFIG_FILENAME} file")
+        return 1
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        return 1
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+        return 130
+
+
+def cmd_splits(args: argparse.Namespace) -> int:
+    """Show stock split history"""
+    try:
+        settings, database, updates = get_paths()
+        db = StockDatabase(settings, database, updates)
+
+        # Get tickers or use defaults
+        tickers = args.tickers if args.tickers else None
+        if tickers is None:
+            tickers = settings['default']['tickers']
+
+        df = db.splits(tickers)
+
+        if not df.empty:
+            print(df.to_string())
+        else:
+            console.print("[yellow]No splits found[/yellow]")
+
+        return 0
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        console.print(f"\nRun [bold]ty init[/bold] to create a {CONFIG_FILENAME} file")
+        return 1
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        return 1
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+        return 130
+
+
+
+
 def create_parser() -> argparse.ArgumentParser:
-    """Create argument parser"""
+    """Create argument parser with subcommands"""
     parser = argparse.ArgumentParser(
         prog='ty',
         description='Tahoo - Terminal Yahoo Finance stock tracker'
@@ -206,31 +299,102 @@ def create_parser() -> argparse.ArgumentParser:
         version=f'%(prog)s {__version__}'
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    subparsers = parser.add_subparsers(dest='command', help='Commands', required=True)
 
-    # Init command
-    init_parser = subparsers.add_parser('init', help='Initialize ty.toml in current directory')
+    # =========================================================================
+    # init - Initialize project
+    # =========================================================================
+    init_parser = subparsers.add_parser(
+        'init',
+        help='Initialize ty.toml in current directory'
+    )
     init_parser.set_defaults(func=cmd_init)
 
-    # Main command (default) - handle stock queries
-    parser.add_argument("-r", metavar='TKR', nargs='*', help="refresh history from Yahoo Finance")
-    parser.add_argument("-s", metavar='TKR', nargs='*', help="select specific tickers")
-    parser.add_argument("-b", metavar='YYYY-MM-DD', type=check_date, help="select begin date")
-    parser.add_argument("-e", metavar='YYYY-MM-DD', type=check_date, help="select end date")
-    parser.add_argument("-m", default=False, action='store_true', help="select last month")
-    parser.add_argument("-y", default=False, action='store_true', help="select last year")
-    parser.add_argument("--day", dest='d_period', default=False, action='store_true', help="select last day")
-    parser.add_argument("-d", default=False, action='store_true', help="select dividends only")
-    parser.add_argument("-x", default=False, action='store_true', help="select splits only")
-    parser.add_argument("--yld", default=False, action='store_true', help="show trailing dividend yield")
-    parser.add_argument("--csv", default=False, action="store_true", help="output in CSV format")
+    # =========================================================================
+    # fetch - Fetch/refresh data
+    # =========================================================================
+    fetch_parser = subparsers.add_parser(
+        'fetch',
+        help='Fetch/refresh stock data from Yahoo Finance'
+    )
+    fetch_parser.add_argument(
+        'tickers',
+        nargs='*',
+        help='Tickers to fetch (default: all from config)'
+    )
+    fetch_parser.set_defaults(func=cmd_fetch)
 
-    # Performance rankings
-    parser.add_argument("--top", type=int, metavar='N', help="show top N performers")
-    parser.add_argument("--bottom", type=int, metavar='N', help="show bottom N performers")
-    parser.add_argument("--movers", type=int, metavar='N', help="show top N and bottom N performers")
+    # =========================================================================
+    # show - Show historical data
+    # =========================================================================
+    show_parser = subparsers.add_parser(
+        'show',
+        help='Show historical price data'
+    )
+    show_parser.add_argument(
+        'tickers',
+        nargs='*',
+        help='Tickers to show (default: all from config)'
+    )
+    show_parser.add_argument('-b', metavar='YYYY-MM-DD', type=check_date, help='Begin date')
+    show_parser.add_argument('-e', metavar='YYYY-MM-DD', type=check_date, help='End date')
+    show_parser.add_argument('-m', action='store_true', help='Last month')
+    show_parser.add_argument('-y', action='store_true', help='Last year')
+    show_parser.add_argument('-d', action='store_true', help='Dividends only')
+    show_parser.add_argument('-x', action='store_true', help='Splits only')
+    show_parser.add_argument('--csv', action='store_true', help='Output CSV format')
+    show_parser.set_defaults(func=cmd_show)
 
-    parser.set_defaults(func=cmd_history)
+    # =========================================================================
+    # rank - Performance rankings
+    # =========================================================================
+    rank_parser = subparsers.add_parser(
+        'rank',
+        help='Show performance rankings and momentum'
+    )
+    rank_parser.add_argument(
+        'tickers',
+        nargs='*',
+        help='Tickers to rank (default: all from config)'
+    )
+    rank_parser.add_argument('--top', type=int, metavar='N', help='Show top N performers')
+    rank_parser.add_argument('--bottom', type=int, metavar='N', help='Show bottom N performers')
+    rank_parser.add_argument('--movers', type=int, metavar='N', help='Show top N and bottom N')
+    rank_parser.add_argument('-b', metavar='YYYY-MM-DD', type=check_date, help='Begin date')
+    rank_parser.add_argument('-e', metavar='YYYY-MM-DD', type=check_date, help='End date')
+    rank_parser.add_argument('-m', action='store_true', help='Last month (default)')
+    rank_parser.add_argument('-y', action='store_true', help='Last year')
+    rank_parser.add_argument('--day', action='store_true', help='Last day')
+    rank_parser.set_defaults(func=cmd_rank)
+
+    # =========================================================================
+    # yield - Dividend yield
+    # =========================================================================
+    yield_parser = subparsers.add_parser(
+        'yield',
+        help='Show dividend yield analysis'
+    )
+    yield_parser.add_argument(
+        'tickers',
+        nargs='*',
+        help='Tickers to analyze (default: all from config)'
+    )
+    yield_parser.add_argument('--csv', action='store_true', help='Output CSV format')
+    yield_parser.set_defaults(func=cmd_yield)
+
+    # =========================================================================
+    # splits - Stock splits
+    # =========================================================================
+    splits_parser = subparsers.add_parser(
+        'splits',
+        help='Show stock split history'
+    )
+    splits_parser.add_argument(
+        'tickers',
+        nargs='*',
+        help='Tickers to show (default: all from config)'
+    )
+    splits_parser.set_defaults(func=cmd_splits)
 
     return parser
 
@@ -240,11 +404,8 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    # Handle subcommands
-    if args.command == 'init':
-        sys.exit(cmd_init(args))
-    else:
-        sys.exit(cmd_history(args))
+    # Execute the command's function
+    sys.exit(args.func(args))
 
 
 if __name__ == '__main__':
