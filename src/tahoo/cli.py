@@ -75,8 +75,9 @@ def cmd_init(args: argparse.Namespace) -> int:
         config_file = init_config()
         console.print(f"[green]Created {config_file}[/green]")
         console.print("\nEdit this file to add your stock tickers, then run:")
-        console.print("  [bold]ty -r[/bold]  # Refresh data from Yahoo Finance")
-        console.print("  [bold]ty -s[/bold]  # Show all historical data")
+        console.print("  [bold]ty fetch[/bold]        # Fetch data from Yahoo Finance")
+        console.print("  [bold]ty show -y[/bold]      # Show last year of data")
+        console.print("  [bold]ty rank --movers 10[/bold]  # See top/bottom performers")
         return 0
     except FileExistsError as e:
         console.print(f"[red]Error: {e}[/red]")
