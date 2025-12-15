@@ -157,11 +157,11 @@ def cmd_show(args: argparse.Namespace) -> int:
         # Output results
         if df is not None and not df.empty:
             if args.csv:
-                print(df.to_csv())
+                # CSV format (for Excel, spreadsheets)
+                print(df.to_csv(index=True))
             else:
-                # Reset index to show Date as a column
-                df_display = df.reset_index()
-                display_dataframe(df_display)
+                # TSV format (default - for gnuplot, data analysis)
+                print(df.to_csv(sep='\t', index=True))
         elif df is not None:
             console.print("[yellow]No data found matching criteria[/yellow]")
 
