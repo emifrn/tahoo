@@ -159,9 +159,13 @@ def cmd_show(args: argparse.Namespace) -> int:
             if args.csv:
                 # CSV format (for Excel, spreadsheets)
                 print(df.to_csv(index=True))
-            else:
-                # TSV format (default - for gnuplot, data analysis)
+            elif args.tsv:
+                # TSV format (for gnuplot, data analysis)
                 print(df.to_csv(sep='\t', index=True))
+            else:
+                # Default: Rich table format for terminal viewing
+                df_display = df.reset_index()
+                display_dataframe(df_display)
         elif df is not None:
             console.print("[yellow]No data found matching criteria[/yellow]")
 
@@ -374,6 +378,7 @@ def create_parser() -> argparse.ArgumentParser:
     show_parser.add_argument('-d', action='store_true', help='Dividends only')
     show_parser.add_argument('-x', action='store_true', help='Splits only')
     show_parser.add_argument('--csv', action='store_true', help='Output CSV format')
+    show_parser.add_argument('--tsv', action='store_true', help='Output TSV format')
     show_parser.set_defaults(func=cmd_show)
 
     # =========================================================================
