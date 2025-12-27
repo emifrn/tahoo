@@ -13,7 +13,7 @@ from rich.console import Console
 
 from . import __version__
 from .config import get_paths, init_config, CONFIG_FILENAME
-from .db import StockDatabase
+from . import db
 from . import themes
 
 console = Console(stderr=True)
@@ -118,8 +118,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch/refresh stock data from Yahoo Finance"""
     try:
         settings, database, updates = get_paths()
-        db = StockDatabase(settings, database, updates)
-        db.refresh('history', args.tickers)
+        conn = db.store.connect(database)
+        db.fetch.refresh_history(conn, settings, updates, args.tickers)
+        conn.close()
         return 0
 
     except FileNotFoundError as e:
@@ -138,24 +139,29 @@ def cmd_show(args: argparse.Namespace) -> int:
     """Show historical price data"""
     try:
         settings, database, updates = get_paths()
-        db = StockDatabase(settings, database, updates)
+        conn = db.store.connect(database)
+
+        # Determine tickers (use defaults if none specified)
+        tickers = args.tickers if args.tickers else settings['default']['tickers']
 
         # Determine date range
         if args.m:
-            begin = datetime.date.today() - relativedelta(months=1)
+            begin = (datetime.date.today() - relativedelta(months=1)).isoformat()
             end = None
         elif args.y:
-            begin = datetime.date.today() - relativedelta(months=12)
+            begin = (datetime.date.today() - relativedelta(months=12)).isoformat()
             end = None
         else:
-            begin = args.b
-            end = args.e
+            begin = args.b.isoformat() if args.b else None
+            end = args.e.isoformat() if args.e else None
 
         # Query data
-        df = db.history(args.tickers, begin=begin, end=end, dividends=args.d, splits=args.x)
+        df = db.queries.get_prices(conn, tickers, start_date=begin, end_date=end,
+                                    dividends=args.d, splits=args.x)
+        conn.close()
 
         # Output results
-        if df is not None and not df.empty:
+        if not df.empty:
             if args.csv:
                 # CSV format (for Excel, spreadsheets)
                 print(df.to_csv(index=True))
@@ -166,7 +172,7 @@ def cmd_show(args: argparse.Namespace) -> int:
                 # Default: Rich table format for terminal viewing
                 df_display = df.reset_index()
                 display_dataframe(df_display)
-        elif df is not None:
+        else:
             console.print("[yellow]No data found matching criteria[/yellow]")
 
         return 0
@@ -187,20 +193,23 @@ def cmd_rank(args: argparse.Namespace) -> int:
     """Show performance rankings and momentum"""
     try:
         settings, database, updates = get_paths()
-        db = StockDatabase(settings, database, updates)
+        conn = db.store.connect(database)
+
+        # Determine tickers (use defaults if none specified)
+        tickers = args.tickers if args.tickers else settings['default']['tickers']
 
         # Determine date range (priority: y > day > b/e > m (default))
         if args.y:
-            begin = datetime.date.today() - relativedelta(months=12)
+            begin = (datetime.date.today() - relativedelta(months=12)).isoformat()
             end = None
             period_desc = "Last Year"
         elif args.day:
-            begin = datetime.date.today() - relativedelta(days=1)
+            begin = (datetime.date.today() - relativedelta(days=1)).isoformat()
             end = None
             period_desc = "Last Day"
         elif args.b or args.e:
-            begin = args.b
-            end = args.e
+            begin = args.b.isoformat() if args.b else None
+            end = args.e.isoformat() if args.e else None
             if begin and end:
                 period_desc = f"{begin} to {end}"
             elif begin:
@@ -209,12 +218,13 @@ def cmd_rank(args: argparse.Namespace) -> int:
                 period_desc = f"Until {end}"
         else:
             # Default to last month
-            begin = datetime.date.today() - relativedelta(months=1)
+            begin = (datetime.date.today() - relativedelta(months=1)).isoformat()
             end = None
             period_desc = "Last Month"
 
         # Get performance data
-        df = db.performance(args.tickers, begin=begin, end=end)
+        df = db.queries.calculate_performance(conn, tickers, start_date=begin, end_date=end)
+        conn.close()
 
         if df.empty:
             console.print("[yellow]No data available for performance analysis[/yellow]")
@@ -260,17 +270,21 @@ def cmd_yield(args: argparse.Namespace) -> int:
     """Show dividend yield analysis"""
     try:
         settings, database, updates = get_paths()
-        db = StockDatabase(settings, database, updates)
+        conn = db.store.connect(database)
 
-        df = db.div_yield(args.tickers)
+        # Determine tickers (use defaults if none specified)
+        tickers = args.tickers if args.tickers else settings['default']['tickers']
 
-        if df is not None and not df.empty:
+        df = db.queries.calculate_div_yield(conn, tickers)
+        conn.close()
+
+        if not df.empty:
             if args.csv:
                 print(df.to_csv())
             else:
                 df_display = df.reset_index()
                 display_dataframe(df_display, "Dividend Yields")
-        elif df is not None:
+        else:
             console.print("[yellow]No data found[/yellow]")
 
         return 0
@@ -291,14 +305,13 @@ def cmd_splits(args: argparse.Namespace) -> int:
     """Show stock split history"""
     try:
         settings, database, updates = get_paths()
-        db = StockDatabase(settings, database, updates)
+        conn = db.store.connect(database)
 
         # Get tickers or use defaults
-        tickers = args.tickers if args.tickers else None
-        if tickers is None:
-            tickers = settings['default']['tickers']
+        tickers = args.tickers if args.tickers else settings['default']['tickers']
 
-        df = db.splits(tickers)
+        df = db.queries.get_splits(conn, tickers)
+        conn.close()
 
         if not df.empty:
             display_dataframe(df, "Stock Splits")
@@ -317,8 +330,6 @@ def cmd_splits(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user[/yellow]")
         return 130
-
-
 
 
 def create_parser() -> argparse.ArgumentParser:
